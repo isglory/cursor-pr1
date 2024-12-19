@@ -178,10 +178,10 @@ function drawMap() {
 }
 
 // Function to update the unit's position and animate it
-function updateUnit(path) {
-    if (isMoving && path.length > 0) { // Check if the unit should move
+function updateUnit(currentPath) {
+    if (isMoving && currentPath.length > 0) { // Check if the unit should move
         // Move towards the target position
-        const target = path[0];
+        const target = currentPath[0];
         const dx = target.x - unit.x;
         const dy = target.y - unit.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
@@ -190,7 +190,7 @@ function updateUnit(path) {
         if (distance < unit.speed) {
             unit.x = target.x;
             unit.y = target.y;
-            path.shift(); // Remove the first element of the path
+            currentPath.shift(); // Remove the first element of the path
         } else {
             // Move the unit towards the target
             unit.x += (dx / distance) * unit.speed;
@@ -211,18 +211,40 @@ canvas.addEventListener('contextmenu', (event) => {
     isMoving = !isMoving; // Toggle the moving state
 });
 
+// Add a new event listener for left-click to move the unit to the clicked position
+canvas.addEventListener('click', (event) => {
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = event.clientX - rect.left;
+    const mouseY = event.clientY - rect.top;
+
+    const targetY = Math.floor(mouseX / TILE_SIZE);
+    const targetX = Math.floor(mouseY / TILE_SIZE);
+
+    // Check if the clicked position is a path
+    if (map[targetX][targetY] === 1) {
+        const start = { x: Math.floor(unit.x), y: Math.floor(unit.y) };
+        const end = { x: targetX, y: targetY };
+        const newPath = aStar(start, end);
+        if (newPath.length > 0) {
+            path.length = 0; // Clear the current path
+            path.push(...newPath.slice(1)); // Set the new path excluding the current position
+            isMoving = true; // Ensure the unit is moving
+        }
+    }
+});
+
 // Animation loop using requestAnimationFrame
-function animate(path) {
+function animate() {
     updateUnit(path);
     drawMap();
-    requestAnimationFrame(() => animate(path)); // Pass the path to the next frame
+    requestAnimationFrame(animate); // Continue the animation loop
 }
 
 // Initialize game
 function init() {
     generateMaze();
-    const path = aStar({ x: 0, y: 0 }, { x: ROWS - 1, y: COLS - 1 });
-    animate(path); // Start the animation loop with the path
+    path = aStar({ x: 0, y: 0 }, { x: ROWS - 1, y: COLS - 1 });
+    animate(); // Start the animation loop with the initial path
 }
 
 init();
