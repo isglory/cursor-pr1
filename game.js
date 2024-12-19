@@ -10,7 +10,7 @@ const COLS = WIDTH / TILE_SIZE;
 // Initialize 2D array map
 let map = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
 
-// Directions for BFS (up, down, left, right)
+// Directions for moving in the maze
 const directions = [
     { x: -1, y: 0 },
     { x: 1, y: 0 },
@@ -18,83 +18,75 @@ const directions = [
     { x: 0, y: 1 }
 ];
 
-// Start and end points
-const start = { x: 0, y: 0 };
-const end = { x: ROWS - 1, y: COLS - 1 };
-
-// Function to generate maze using randomized DFS
-function generateMaze(x, y) {
-    map[x][y] = 1;
-
-    // Shuffle directions
-    let dirs = directions.sort(() => Math.random() - 0.5);
-
-    for (let dir of dirs) {
-        let newX = x + dir.x * 2;
-        let newY = y + dir.y * 2;
-
-        if (newX >= 0 && newX < ROWS && newY >= 0 && newY < COLS && map[newX][newY] === 0) {
-            map[x + dir.x][y + dir.y] = 1;
-            generateMaze(newX, newY);
-        }
+// Function to shuffle an array using Fisher-Yates algorithm
+function shuffle(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
     }
+    return array;
 }
 
-// Ensure there's a path between start and end using BFS
-function ensurePath() {
-    let queue = [];
-    let visited = Array.from({ length: ROWS }, () => Array(COLS).fill(false));
-    queue.push(start);
-    visited[start.x][start.y] = true;
+// Function to generate maze using Prim's algorithm
+function generateMaze() {
+    // Start with a grid of walls
+    map = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
 
-    while (queue.length > 0) {
-        let current = queue.shift();
-        if (current.x === end.x && current.y === end.y) {
-            return true;
+    // Randomly select a starting point
+    let startX = Math.floor(Math.random() * ROWS);
+    let startY = Math.floor(Math.random() * COLS);
+    map[startX][startY] = 1; // Mark the starting point as a path
+
+    // List of walls to be added
+    let walls = [];
+
+    // Add initial walls around the starting point
+    for (let dir of directions) {
+        let newX = startX + dir.x;
+        let newY = startY + dir.y;
+
+        if (newX >= 0 && newX < ROWS && newY >= 0 && newY < COLS) {
+            walls.push({ x: newX, y: newY, dir });
+        }
+    }
+
+    // While there are walls to process
+    while (walls.length > 0) {
+        // Randomly select a wall
+        let wallIndex = Math.floor(Math.random() * walls.length);
+        let wall = walls[wallIndex];
+        walls.splice(wallIndex, 1); // Remove the wall from the list
+
+        // Check if the wall can be turned into a path
+        let count = 0;
+        for (let dir of directions) {
+            let newX = wall.x + dir.x;
+            let newY = wall.y + dir.y;
+
+            if (newX >= 0 && newX < ROWS && newY >= 0 && newY < COLS && map[newX][newY] === 1) {
+                count++;
+            }
         }
 
-        for (let dir of directions) {
-            let newX = current.x + dir.x;
-            let newY = current.y + dir.y;
+        // If only one adjacent cell is a path, make the wall a path
+        if (count === 1) {
+            map[wall.x][wall.y] = 1; // Make the wall a path
 
-            if (
-                newX >= 0 && newX < ROWS &&
-                newY >= 0 && newY < COLS &&
-                map[newX][newY] === 1 &&
-                !visited[newX][newY]
-            ) {
-                queue.push({ x: newX, y: newY });
-                visited[newX][newY] = true;
+            // Add the neighboring walls to the list
+            for (let dir of directions) {
+                let newX = wall.x + dir.x;
+                let newY = wall.y + dir.y;
+
+                if (newX >= 0 && newX < ROWS && newY >= 0 && newY < COLS && map[newX][newY] === 0) {
+                    walls.push({ x: newX, y: newY, dir });
+                }
             }
         }
     }
 
-    return false;
-}
-
-// Function to generate a visually pleasing map
-function generateMap() {
-    let attempts = 0;
-    const maxAttempts = 10;
-
-    while (attempts < maxAttempts) {
-        // Reset map
-        map = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
-
-        // Generate maze
-        generateMaze(start.x, start.y);
-
-        // Ensure there's a path from start to end
-        if (ensurePath()) {
-            console.log(`Map generated successfully on attempt ${attempts + 1}`);
-            return;
-        }
-
-        attempts++;
-        console.warn(`Attempt ${attempts} failed, retrying...`);
-    }
-
-    console.error('Failed to generate a valid map after maximum attempts.');
+    // Ensure start and end points are path
+    map[0][0] = 1; // Start point
+    map[ROWS - 1][COLS - 1] = 1; // End point
 }
 
 // Function to draw the map
@@ -112,15 +104,15 @@ function drawMap() {
 
     // Highlight start and end points
     ctx.fillStyle = '#FFD700'; // Start color
-    ctx.fillRect(start.y * TILE_SIZE, start.x * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+    ctx.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
 
     ctx.fillStyle = '#FF4500'; // End color
-    ctx.fillRect(end.y * TILE_SIZE, end.x * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+    ctx.fillRect((COLS - 1) * TILE_SIZE, (ROWS - 1) * TILE_SIZE, TILE_SIZE, TILE_SIZE);
 }
 
 // Initialize game
 function init() {
-    generateMap();
+    generateMaze();
     drawMap();
 }
 
