@@ -18,14 +18,16 @@ const directions = [
     { x: 0, y: 1 }
 ];
 
-// Function to shuffle an array using Fisher-Yates algorithm
-function shuffle(array) {
-    for (let i = array.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [array[i], array[j]] = [array[j], array[i]];
-    }
-    return array;
-}
+// Circle unit properties
+const unit = {
+    x: 0,
+    y: 0,
+    radius: TILE_SIZE / 2,
+    color: '#FFD700', // Yellow color
+    speed: 0.1, // Speed of movement
+    scale: 1, // Scale for animation
+    scaleDirection: 1, // 1 for growing, -1 for shrinking
+};
 
 // Function to generate maze using Prim's algorithm
 function generateMaze() {
@@ -89,7 +91,64 @@ function generateMaze() {
     map[ROWS - 1][COLS - 1] = 1; // End point
 }
 
-// Function to draw the map
+// A* algorithm to find the shortest path
+function aStar(start, end) {
+    let openSet = [start];
+    let cameFrom = {};
+    let gScore = Array.from({ length: ROWS }, () => Array(COLS).fill(Infinity));
+    let fScore = Array.from({ length: ROWS }, () => Array(COLS).fill(Infinity));
+
+    gScore[start.x][start.y] = 0;
+    fScore[start.x][start.y] = heuristic(start, end);
+
+    while (openSet.length > 0) {
+        // Get the node in openSet with the lowest fScore
+        let current = openSet.reduce((prev, curr) => (fScore[curr.x][curr.y] < fScore[prev.x][prev.y] ? curr : prev));
+
+        if (current.x === end.x && current.y === end.y) {
+            return reconstructPath(cameFrom, current);
+        }
+
+        openSet = openSet.filter(node => node !== current);
+
+        for (let dir of directions) {
+            let neighbor = { x: current.x + dir.x, y: current.y + dir.y };
+
+            if (neighbor.x >= 0 && neighbor.x < ROWS && neighbor.y >= 0 && neighbor.y < COLS && map[neighbor.x][neighbor.y] === 1) {
+                let tentativeGScore = gScore[current.x][current.y] + 1;
+
+                if (tentativeGScore < gScore[neighbor.x][neighbor.y]) {
+                    cameFrom[`${neighbor.x},${neighbor.y}`] = current;
+                    gScore[neighbor.x][neighbor.y] = tentativeGScore;
+                    fScore[neighbor.x][neighbor.y] = gScore[neighbor.x][neighbor.y] + heuristic(neighbor, end);
+
+                    if (!openSet.some(node => node.x === neighbor.x && node.y === neighbor.y)) {
+                        openSet.push(neighbor);
+                    }
+                }
+            }
+        }
+    }
+
+    return []; // No path found
+}
+
+// Heuristic function for A* (Manhattan distance)
+function heuristic(a, b) {
+    return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+}
+
+// Reconstruct the path from the cameFrom map
+function reconstructPath(cameFrom, current) {
+    let totalPath = [current];
+    while (`${current.x},${current.y}` in cameFrom) {
+        current = cameFrom[`${current.x},${current.y}`];
+        totalPath.push(current);
+    }
+    return totalPath.reverse();
+}
+
+// Function to draw the map and the unit
 function drawMap() {
     for (let x = 0; x < ROWS; x++) {
         for (let y = 0; y < COLS; y++) {
@@ -108,12 +167,54 @@ function drawMap() {
 
     ctx.fillStyle = '#FF4500'; // End color
     ctx.fillRect((COLS - 1) * TILE_SIZE, (ROWS - 1) * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+
+    // Draw the unit with scaling effect
+    ctx.fillStyle = unit.color;
+    ctx.beginPath();
+    ctx.arc(unit.y * TILE_SIZE + TILE_SIZE / 2, unit.x * TILE_SIZE + TILE_SIZE / 2, unit.radius * unit.scale, 0, Math.PI * 2);
+    ctx.fill();
+}
+
+// Function to update the unit's position and animate it
+function updateUnit(path) {
+    if (path.length > 0) {
+        // Move towards the target position
+        const target = path[0];
+        const dx = target.x - unit.x;
+        const dy = target.y - unit.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        // If the unit is close enough to the target, move to the next target
+        if (distance < unit.speed) {
+            unit.x = target.x;
+            unit.y = target.y;
+            path.shift(); // Remove the first element of the path
+        } else {
+            // Move the unit towards the target
+            unit.x += (dx / distance) * unit.speed;
+            unit.y += (dy / distance) * unit.speed;
+        }
+
+        // Animate the unit's scale with smaller changes
+        unit.scale += unit.scaleDirection * 0.02; // Change scale (smaller change)
+        if (unit.scale >= 1.05 || unit.scale <= 0.95) { // Adjusted scale limits
+            unit.scaleDirection *= -1; // Reverse direction
+        }
+    }
+}
+
+// Animation loop using requestAnimationFrame
+function animate(path) {
+    updateUnit(path);
+    drawMap();
+    requestAnimationFrame(() => animate(path)); // Pass the path to the next frame
 }
 
 // Initialize game
 function init() {
     generateMaze();
-    drawMap();
+    const path = aStar({ x: 0, y: 0 }, { x: ROWS - 1, y: COLS - 1 });
+    animate(path); // Start the animation loop with the path
 }
 
 init();
