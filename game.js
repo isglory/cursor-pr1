@@ -29,6 +29,8 @@ const unit = {
     scaleDirection: 1, // 1 for growing, -1 for shrinking
 };
 
+let isMoving = true; // Track if the unit is moving
+
 // Function to generate maze using Prim's algorithm
 function generateMaze() {
     // Start with a grid of walls
@@ -177,7 +179,7 @@ function drawMap() {
 
 // Function to update the unit's position and animate it
 function updateUnit(path) {
-    if (path.length > 0) {
+    if (isMoving && path.length > 0) { // Check if the unit should move
         // Move towards the target position
         const target = path[0];
         const dx = target.x - unit.x;
@@ -202,6 +204,12 @@ function updateUnit(path) {
         }
     }
 }
+
+// Function to handle mouse right-click
+canvas.addEventListener('contextmenu', (event) => {
+    event.preventDefault(); // Prevent the default context menu
+    isMoving = !isMoving; // Toggle the moving state
+});
 
 // Animation loop using requestAnimationFrame
 function animate(path) {
