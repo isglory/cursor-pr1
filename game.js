@@ -22,17 +22,22 @@ const directions = [
 const unit = {
     x: 0,
     y: 0,
+    targetX: 0, // 목표 x 좌표
+    targetY: 0, // 목표 y 좌표
     radius: TILE_SIZE / 2,
-    color: '#FFD700', // Yellow color
-    speed: 0.1, // Speed of movement
-    scale: 1, // Scale for animation
-    scaleDirection: 1, // 1 for growing, -1 for shrinking
+    color: '#FFD700',
+    speed: 0.15, // 이동 속도 조정
+    scale: 1,
+    scaleDirection: 1,
 };
 
 let isMoving = true; // Track if the unit is moving
 
 // 적군 유닛 배열 추가
 let enemies = [];
+
+// Flag to track if the game has ended
+let gameOver = false;
 
 // 적군 유닛 생성 함수
 function createEnemies() {
@@ -172,6 +177,11 @@ function generateMaze() {
     // Ensure start and end points are path
     map[0][0] = 1; // Start point
     map[ROWS - 1][COLS - 1] = 1; // End point
+
+    // Mark enemy positions as obstacles to prevent unit overlap
+    enemies.forEach(enemy => {
+        map[Math.floor(enemy.x)][Math.floor(enemy.y)] = 0;
+    });
 }
 
 // Function to draw the map and the unit
@@ -214,6 +224,14 @@ function updateUnit(currentPath) {
     if (isMoving && currentPath.length > 0) { // Check if the unit should move
         // Move towards the target position
         const target = currentPath[0];
+
+        // Check if the target cell is occupied by an enemy
+        const isOccupied = enemies.some(enemy => Math.round(enemy.x) === target.x && Math.round(enemy.y) === target.y);
+        if (isOccupied) {
+            isMoving = false; // Stop movement if the target cell is occupied
+            return;
+        }
+
         const dx = target.x - unit.x;
         const dy = target.y - unit.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
@@ -239,31 +257,43 @@ function updateUnit(currentPath) {
 
 // Function to update enemies' positions along their current paths
 function updateEnemiesMovement() {
-    for (let enemy of enemies) {
+    enemies.forEach(enemy => {
         if (enemy.currentPath.length > 0) {
             const target = enemy.currentPath[0];
+
+            // Check if the target cell is occupied by the player or another enemy
+            const isOccupied = (Math.round(unit.x) === target.x && Math.round(unit.y) === target.y) ||
+                               enemies.some(e => e !== enemy && Math.round(e.x) === target.x && Math.round(e.y) === target.y);
+            if (isOccupied) {
+                enemy.currentPath = []; // Stop movement if the target cell is occupied
+                return;
+            }
+
             const dx = target.x - enemy.x;
             const dy = target.y - enemy.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
 
+            // 적군이 목표 위치에 가까워지면 다음 목표로 이동
             if (distance < enemySpeed) {
                 enemy.x = target.x;
                 enemy.y = target.y;
                 enemy.currentPath.shift(); // Remove the reached position
             } else {
+                // 적군을 목표 위치로 이동
                 enemy.x += (dx / distance) * enemySpeed;
                 enemy.y += (dy / distance) * enemySpeed;
             }
         }
-    }
+    });
 }
 
-// Function to update the enemies' paths towards the player's current position every 3 seconds
+// Function to update the enemies' paths towards the player's last known position
 function updateEnemiesPaths() {
+    const playerLastPosition = { x: Math.floor(unit.x), y: Math.floor(unit.y) }; // 플레이어의 현재 위치를 마지막 위치로 저장
+
     for (let enemy of enemies) {
         const start = { x: Math.floor(enemy.x), y: Math.floor(enemy.y) };
-        const end = { x: Math.floor(unit.x), y: Math.floor(unit.y) };
-        const newPath = aStar(start, end);
+        const newPath = aStar(start, playerLastPosition); // 플레이어의 마지막 위치로 경로 설정
         if (newPath.length > 1) { // Ensure there is a path beyond the current position
             enemy.currentPath = newPath.slice(1); // Exclude the current position
         }
@@ -278,6 +308,8 @@ canvas.addEventListener('contextmenu', (event) => {
 
 // Add a new event listener for left-click to move the unit to the clicked position
 canvas.addEventListener('click', (event) => {
+    if (gameOver) return; // Do not allow movement if the game is over
+
     const rect = canvas.getBoundingClientRect();
     const mouseX = event.clientX - rect.left;
     const mouseY = event.clientY - rect.top;
@@ -298,24 +330,130 @@ canvas.addEventListener('click', (event) => {
     }
 });
 
+// Function to display game over message on the canvas
+function displayGameOver() {
+    // 반투명한 검은색 배경
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    
+    // 게임오버 메시지
+    ctx.fillStyle = '#FF0000'; // 빨간색 텍스트
+    ctx.font = 'bold 48px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('게임 오버!', WIDTH / 2, HEIGHT / 2);
+    
+    // 재시작 안내 메시지
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '24px Arial';
+    ctx.fillText('새 게임을 시작하려면 F5를 누르세요', WIDTH / 2, HEIGHT / 2 + 50);
+}
+
+// Function to check for collision between unit and enemies
+function checkCollision() {
+    const collisionDistance = 0.8; // 충돌 감지 거리 설정 (타일 크기의 80%)
+    
+    for (let enemy of enemies) {
+        // 유닛과 적군 사이의 실제 거리 계산
+        const dx = unit.x - enemy.x;
+        const dy = unit.y - enemy.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        // 설정된 거리보다 가까워지면 충돌로 판정
+        if (distance < collisionDistance) {
+            if (!gameOver) {
+                gameOver = true;
+                isMoving = false;
+                enemies.forEach(e => e.currentPath = []); // 모든 적군 정지
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
+// 유닛의 부드러운 이동을 처리하는 새로운 함수
+function updateUnitMovement() {
+    // 현재 위치와 목표 위치 사이의 거리 계산
+    const dx = unit.targetX - unit.x;
+    const dy = unit.targetY - unit.y;
+    
+    // 거리가 매우 작으면 바로 목표 위치로 이동
+    if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) {
+        unit.x = unit.targetX;
+        unit.y = unit.targetY;
+    } else {
+        // 부드러운 이동 적용
+        unit.x += dx * unit.speed;
+        unit.y += dy * unit.speed;
+    }
+
+    // 크기 애니메이션 업데이트
+    unit.scale += unit.scaleDirection * 0.02;
+    if (unit.scale >= 1.05 || unit.scale <= 0.95) {
+        unit.scaleDirection *= -1;
+    }
+}
+
 // Animation loop using requestAnimationFrame
 function animate() {
-    updateUnit(path);
-    updateEnemiesMovement(); // 적군 유닛의 이동
+    if (!gameOver) {
+        updateUnitMovement();
+        updateEnemiesMovement();
+    }
     drawMap();
-    requestAnimationFrame(animate); // Continue the animation loop
+    if (checkCollision()) {
+        displayGameOver();
+    }
+    requestAnimationFrame(animate);
 }
 
 // Initialize game
 function init() {
     generateMaze();
-    createEnemies(); // 적군 유닛 생성
-    updateEnemiesPaths(); // 초기 경로 설정
-    path = aStar({ x: 0, y: 0 }, { x: ROWS - 1, y: COLS - 1 });
-    animate(); // Start the animation loop with the initial path
+    unit.targetX = unit.x; // 초기 목표 위치 설정
+    unit.targetY = unit.y;
+    createEnemies();
+    updateEnemiesPaths();
+    animate();
 
-    // Set interval to update enemies' paths every 3초
-    setInterval(updateEnemiesPaths, 3000);
+    // Update enemies' paths every 1000ms (1 second)
+    setInterval(updateEnemiesPaths, 1000); // 인터벌 시간 축소
 }
+
+// Update unit's position based on keyboard input
+function handleKeyPress(event) {
+    if (gameOver) return; // Do not allow movement if the game is over
+
+    const key = event.key;
+    let newX = Math.floor(unit.targetX);
+    let newY = Math.floor(unit.targetY);
+
+    switch (key) {
+        case 'ArrowUp':
+            newX -= 1;
+            break;
+        case 'ArrowDown':
+            newX += 1;
+            break;
+        case 'ArrowLeft':
+            newY -= 1;
+            break;
+        case 'ArrowRight':
+            newY += 1;
+            break;
+        default:
+            return;
+    }
+
+    // 새로운 위치가 유효한 경로인 경우에만 목표 위치 업데이트
+    if (newX >= 0 && newX < ROWS && newY >= 0 && newY < COLS && map[newX][newY] === 1) {
+        unit.targetX = newX;
+        unit.targetY = newY;
+    }
+}
+
+// Add event listener for keydown events
+window.addEventListener('keydown', handleKeyPress);
 
 init();
