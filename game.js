@@ -330,28 +330,9 @@ canvas.addEventListener('click', (event) => {
     }
 });
 
-// Function to display game over message on the canvas
-function displayGameOver() {
-    // 반투명한 검은색 배경
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(0, 0, WIDTH, HEIGHT);
-    
-    // 게임오버 메시지
-    ctx.fillStyle = '#FF0000'; // 빨간색 텍스트
-    ctx.font = 'bold 48px Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('게임 오버!', WIDTH / 2, HEIGHT / 2);
-    
-    // 재시작 안내 메시지
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = '24px Arial';
-    ctx.fillText('새 게임을 시작하려면 F5를 누르세요', WIDTH / 2, HEIGHT / 2 + 50);
-}
-
 // Function to check for collision between unit and enemies
 function checkCollision() {
-    const collisionDistance = 0.8; // 충돌 감지 거리 설정 (타일 크기의 80%)
+    const collisionDistance = 1.1; // 충돌 감지 거리 설정 (타일 크기의 80%)
     
     for (let enemy of enemies) {
         // 유닛과 적군 사이의 실제 거리 계산
@@ -370,6 +351,25 @@ function checkCollision() {
         }
     }
     return false;
+}
+
+// Function to display game over message on the canvas
+function displayGameOver() {
+    // 반투명한 검은색 배경
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    
+    // 게임오버 메시지
+    ctx.fillStyle = '#FF0000'; // 빨간색 텍스트
+    ctx.font = 'bold 48px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('게임 오버!', WIDTH / 2, HEIGHT / 2);
+    
+    // 재시작 안내 메시지
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '24px Arial';
+    ctx.fillText('새 게임을 시작하려면 F5를 누르세요', WIDTH / 2, HEIGHT / 2 + 50);
 }
 
 // 유닛의 부드러운 이동을 처리하는 새로운 함수
